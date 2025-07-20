@@ -9,9 +9,39 @@ https://github.com/txubelaxu/esphome-jk-bms/blob/main/components/jk_rs485_bms/jk
 
 import datetime
 import json
+import logging
 import math
 import paho.mqtt.client as mqtt
 import os
+import sys
+
+# Configure logging for Home Assistant addon
+def setup_logging(log_level="INFO"):
+    """Setup logging configuration for Home Assistant addon."""
+    # Convert string log level to logging constant
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Setup root logger
+    logger = logging.getLogger()
+    logger.setLevel(numeric_level)
+    
+    # Remove existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Create console handler for addon logs
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(numeric_level)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
     
 class RS485MQTTClient:
     def __init__(self, broker_host, broker_port, username, password, topic_tx, topic_registration, topic_values, log_file="dump.txt"):
@@ -25,21 +55,22 @@ class RS485MQTTClient:
         self.log_file = log_file
         self.client = None
         self.bms_registry = dict()
+        self.logger = logging.getLogger(__name__)
         
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
-            print(f"Connected successfully to MQTT broker at {self.broker_host}:{self.broker_port}")
+            self.logger.info(f"Connected successfully to MQTT broker at {self.broker_host}:{self.broker_port}")
             client.subscribe(self.topic_tx)
-            print(f"Subscribed to topic: {self.topic_tx}")
+            self.logger.info(f"Subscribed to topic: {self.topic_tx}")
         else:
-            print(f"Failed to connect to MQTT broker. Return code: {rc}")
+            self.logger.error(f"Failed to connect to MQTT broker. Return code: {rc}")
             self.print_connection_error(rc)
     
     def on_disconnect(self, client, userdata, rc):
         if rc != 0:
-            print("Unexpected disconnection from MQTT broker")
+            self.logger.warning("Unexpected disconnection from MQTT broker")
         else:
-            print("Disconnected from MQTT broker")
+            self.logger.info("Disconnected from MQTT broker")
     
     def on_message(self, client, userdata, msg):
         try:
@@ -74,7 +105,7 @@ class RS485MQTTClient:
                         cellCount = int(read32(msg.payload, 114))
                         self.bms_registry[frameAddress] = cellCount
 
-                        print(f"{timestamp} New BMS #{frameAddress} registered ({cellCount} cells)")
+                        self.logger.info(f"New BMS #{frameAddress} registered ({cellCount} cells)")
 
                         # main category
                         self.sensor_registration(frameAddress, "SOC", "soc", "battery", "%", None, "state", "{{ value_json.soc | float }}", 1)
@@ -141,7 +172,7 @@ class RS485MQTTClient:
                         self.binary_sensor_registration(frameAddress, "Discharge Enabled Switch", "discharge_enabled_switch", None, None, "diagnostic", "settings", "{{ value_json.discharge_enabled_switch }}")
                         self.binary_sensor_registration(frameAddress, "Balancer Switch", "balancer_switch", None, None, "diagnostic", "settings", "{{ value_json.balancer_switch }}")
                     else:
-                        print(f"{timestamp} Update settings for BMS #{frameAddress}")
+                        self.logger.debug(f"Update settings for BMS #{frameAddress}")
 
                     self.client.publish(
                         f"{self.topic_values}/{frameAddress:02d}/settings",
@@ -165,7 +196,7 @@ class RS485MQTTClient:
                     )
 
                 elif frameType == 0x02 and bms_registered: # decode_jk02_cell_info_
-                    print(f"{timestamp} Update Cell Info for BMS #{frameAddress}")
+                    self.logger.debug(f"Update Cell Info for BMS #{frameAddress}")
                     cellCount = self.bms_registry[frameAddress]
 
                     battery_voltage = truncate(read32(msg.payload, 118 + 16*2) * 0.001, 3)
@@ -285,17 +316,16 @@ class RS485MQTTClient:
                         json.dumps(state)
                     )
                 else:
-                    print(f"{timestamp} Unsupported Frame Type: {frameType} from BMS #{frameAddress}")
+                    self.logger.warning(f"Unsupported Frame Type: {frameType} from BMS #{frameAddress}")
 
             else:
-                # print(f"{timestamp} Unknown payload received: '{msg.payload.hex()}' ({len(msg.payload)} bytes)")
-                pass
+                self.logger.debug(f"Unknown payload received: '{msg.payload.hex()}' ({len(msg.payload)} bytes)")
         
         except Exception as e:
-            print(f"Error processing message: {e}")
+            self.logger.error(f"Error processing message: {e}", exc_info=True)
     
     def on_subscribe(self, client, userdata, mid, granted_qos):
-        print(f"Subscription confirmed with QoS: {granted_qos}")
+        self.logger.info(f"Subscription confirmed with QoS: {granted_qos}")
     
     def print_connection_error(self, rc):
         error_messages = {
@@ -306,9 +336,9 @@ class RS485MQTTClient:
             5: "Connection refused - not authorised"
         }
         if rc in error_messages:
-            print(f"Error: {error_messages[rc]}")
+            self.logger.error(f"MQTT Error: {error_messages[rc]}")
         else:
-            print(f"Unknown connection error: {rc}")
+            self.logger.error(f"Unknown MQTT connection error: {rc}")
 
     def build_sensor_registration(self, address, name, id, device_class, unit_of_measurement, entity_category, value_template = "{{ value }}", precision = 3):
         r = {
@@ -398,7 +428,7 @@ class RS485MQTTClient:
     def connect_and_listen(self):
         try:
             # Initialize log file
-            print(f"Logging data to: {os.path.abspath(self.log_file)}")
+            self.logger.info(f"Logging data to: {os.path.abspath(self.log_file)}")
             
             # Create MQTT client
             self.client = mqtt.Client()
@@ -412,22 +442,22 @@ class RS485MQTTClient:
             # Set username and password
             self.client.username_pw_set(self.username, self.password)
             
-            print(f"Connecting to MQTT broker at {self.broker_host}:{self.broker_port}...")
+            self.logger.info(f"Connecting to MQTT broker at {self.broker_host}:{self.broker_port}...")
             
             # Connect to broker
             self.client.connect(self.broker_host, self.broker_port, 60)
             
             # Start the loop
-            print("Starting MQTT client loop...")
-            print("Waiting for RS485 data... (Press Ctrl+C to exit)")
+            self.logger.info("Starting MQTT client loop...")
+            self.logger.info("Waiting for RS485 data... (Press Ctrl+C to exit)")
             self.client.loop_forever()
             
         except KeyboardInterrupt:
-            print("\nShutting down...")
+            self.logger.info("Shutting down...")
             if self.client:
                 self.client.disconnect()
         except Exception as e:
-            print(f"Error: {e}")
+            self.logger.error(f"Error: {e}", exc_info=True)
             return False
         
         return True
@@ -445,15 +475,18 @@ def main():
     TOPIC_REGISTRATION = os.getenv("TOPIC_REGISTRATION", "homeassistant")
     LOG_LEVEL = os.getenv("LOG_LEVEL", "info")
     
-    print("RS485 MQTT Client for JK-BMS Data")
-    print("=" * 40)
-    print(f"Broker: {BROKER_HOST}:{BROKER_PORT}")
-    print(f"Topic-TX: {TOPIC_TX}")
-    print(f"Topic-HA-values: {TOPIC_VALUES}")
-    print(f"Topic-HA-registration: {TOPIC_REGISTRATION}")
-    print(f"User: {USERNAME}")
-    print(f"Log Level: {LOG_LEVEL}")
-    print("=" * 40)
+    # Setup logging
+    logger = setup_logging(LOG_LEVEL)
+    
+    logger.info("RS485 MQTT Client for JK-BMS Data")
+    logger.info("=" * 40)
+    logger.info(f"Broker: {BROKER_HOST}:{BROKER_PORT}")
+    logger.info(f"Topic-TX: {TOPIC_TX}")
+    logger.info(f"Topic-HA-values: {TOPIC_VALUES}")
+    logger.info(f"Topic-HA-registration: {TOPIC_REGISTRATION}")
+    logger.info(f"User: {USERNAME}")
+    logger.info(f"Log Level: {LOG_LEVEL}")
+    logger.info("=" * 40)
     
     # Create and start the client
     client = RS485MQTTClient(BROKER_HOST, BROKER_PORT, USERNAME, PASSWORD, TOPIC_TX, TOPIC_REGISTRATION, TOPIC_VALUES)
