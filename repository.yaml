@@ -1,0 +1,6 @@
+{
+  "name": "JK-BMS RS485 MQTT Proxy Repository",
+  "url": "https://github.com/yourusername/ha-jk-bms-rs485-proxy",
+  "maintainer": "Your Name <your.email@example.com>",
+  "description": "Home Assistant add-on repository for JK-BMS RS485 MQTT proxy with auto-discovery"
+}

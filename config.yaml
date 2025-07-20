@@ -1,0 +1,36 @@
+name: "JK-BMS RS485 MQTT Proxy"
+description: "MQTT proxy for JK-BMS RS485 data with Home Assistant auto-discovery"
+version: "1.0.0"
+slug: "jk_bms_rs485_proxy"
+arch:
+  - armhf
+  - armv7
+  - aarch64
+  - amd64
+  - i386
+startup: services
+boot: auto
+init: false
+map:
+  - share:rw
+options:
+  mqtt_broker_host: "core-mosquitto"
+  mqtt_broker_port: 1883
+  mqtt_username: "homeassistant"
+  mqtt_password: ""
+  topic_tx: "rs485tx/tx"
+  topic_values: "rs485tx/bms"
+  topic_registration: "homeassistant"
+  log_level: "info"
+schema:
+  mqtt_broker_host: str
+  mqtt_broker_port: port
+  mqtt_username: str
+  mqtt_password: password
+  topic_tx: str
+  topic_values: str
+  topic_registration: str
+  log_level: list(trace|debug|info|notice|warning|error|fatal)?
+services:
+  - mqtt:need
+image: "ghcr.io/home-assistant/amd64-base-python:3.11-alpine3.18"
