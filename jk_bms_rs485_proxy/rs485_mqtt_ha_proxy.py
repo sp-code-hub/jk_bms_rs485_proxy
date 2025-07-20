@@ -21,10 +21,9 @@ def setup_logging(log_level="INFO"):
     # Convert string log level to logging constant
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
     
-    # Create formatter
+    # Create simple formatter without timestamp (we'll add custom timestamps)
     formatter = logging.Formatter(
-        fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        fmt='%(message)s'
     )
     
     # Setup root logger
@@ -42,6 +41,11 @@ def setup_logging(log_level="INFO"):
     logger.addHandler(console_handler)
     
     return logger
+
+def get_timestamp():
+    """Get formatted timestamp in the format: [dd MMM, yyyy, hh:mm:ss.ffffff]"""
+    now = datetime.datetime.now()
+    return now.strftime("[%d %b, %Y, %H:%M:%S.%f]")
     
 class RS485MQTTClient:
     def __init__(self, broker_host, broker_port, username, password, topic_tx, topic_registration, topic_values, log_file="dump.txt"):
@@ -59,18 +63,18 @@ class RS485MQTTClient:
         
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
-            self.logger.info(f"Connected successfully to MQTT broker at {self.broker_host}:{self.broker_port}")
+            self.logger.info(f"{get_timestamp()} Connected successfully to MQTT broker at {self.broker_host}:{self.broker_port}")
             client.subscribe(self.topic_tx)
-            self.logger.info(f"Subscribed to topic: {self.topic_tx}")
+            self.logger.info(f"{get_timestamp()} Subscribed to topic: {self.topic_tx}")
         else:
-            self.logger.error(f"Failed to connect to MQTT broker. Return code: {rc}")
+            self.logger.error(f"{get_timestamp()} Failed to connect to MQTT broker. Return code: {rc}")
             self.print_connection_error(rc)
     
     def on_disconnect(self, client, userdata, rc):
         if rc != 0:
-            self.logger.warning("Unexpected disconnection from MQTT broker")
+            self.logger.warning(f"{get_timestamp()} Unexpected disconnection from MQTT broker")
         else:
-            self.logger.info("Disconnected from MQTT broker")
+            self.logger.info(f"{get_timestamp()} Disconnected from MQTT broker")
     
     def on_message(self, client, userdata, msg):
         try:
@@ -105,7 +109,7 @@ class RS485MQTTClient:
                         cellCount = int(read32(msg.payload, 114))
                         self.bms_registry[frameAddress] = cellCount
 
-                        self.logger.info(f"New BMS #{frameAddress} registered ({cellCount} cells)")
+                        self.logger.info(f"{get_timestamp()} New BMS #{frameAddress} registered ({cellCount} cells)")
 
                         # main category
                         self.sensor_registration(frameAddress, "SOC", "soc", "battery", "%", None, "state", "{{ value_json.soc | float }}", 1)
@@ -172,7 +176,7 @@ class RS485MQTTClient:
                         self.binary_sensor_registration(frameAddress, "Discharge Enabled Switch", "discharge_enabled_switch", None, None, "diagnostic", "settings", "{{ value_json.discharge_enabled_switch }}")
                         self.binary_sensor_registration(frameAddress, "Balancer Switch", "balancer_switch", None, None, "diagnostic", "settings", "{{ value_json.balancer_switch }}")
                     else:
-                        self.logger.debug(f"Update settings for BMS #{frameAddress}")
+                        self.logger.debug(f"{get_timestamp()} Update settings for BMS #{frameAddress}")
 
                     self.client.publish(
                         f"{self.topic_values}/{frameAddress:02d}/settings",
@@ -196,7 +200,7 @@ class RS485MQTTClient:
                     )
 
                 elif frameType == 0x02 and bms_registered: # decode_jk02_cell_info_
-                    self.logger.debug(f"Update Cell Info for BMS #{frameAddress}")
+                    self.logger.debug(f"{get_timestamp()} Update Cell Info for BMS #{frameAddress}")
                     cellCount = self.bms_registry[frameAddress]
 
                     battery_voltage = truncate(read32(msg.payload, 118 + 16*2) * 0.001, 3)
@@ -316,16 +320,17 @@ class RS485MQTTClient:
                         json.dumps(state)
                     )
                 else:
-                    self.logger.warning(f"Unsupported Frame Type: {frameType} from BMS #{frameAddress}")
+                    self.logger.warning(f"{get_timestamp()} Unsupported Frame Type: {frameType} from BMS #{frameAddress}")
 
             else:
-                self.logger.debug(f"Unknown payload received: '{msg.payload.hex()}' ({len(msg.payload)} bytes)")
+                # self.logger.debug(f"Unknown payload received: '{msg.payload.hex()}' ({len(msg.payload)} bytes)")
+                pass
         
         except Exception as e:
-            self.logger.error(f"Error processing message: {e}", exc_info=True)
+            self.logger.error(f"{get_timestamp()} Error processing message: {e}", exc_info=True)
     
     def on_subscribe(self, client, userdata, mid, granted_qos):
-        self.logger.info(f"Subscription confirmed with QoS: {granted_qos}")
+        self.logger.info(f"{get_timestamp()} Subscription confirmed with QoS: {granted_qos}")
     
     def print_connection_error(self, rc):
         error_messages = {
@@ -336,9 +341,9 @@ class RS485MQTTClient:
             5: "Connection refused - not authorised"
         }
         if rc in error_messages:
-            self.logger.error(f"MQTT Error: {error_messages[rc]}")
+            self.logger.error(f"{get_timestamp()} MQTT Error: {error_messages[rc]}")
         else:
-            self.logger.error(f"Unknown MQTT connection error: {rc}")
+            self.logger.error(f"{get_timestamp()} Unknown MQTT connection error: {rc}")
 
     def build_sensor_registration(self, address, name, id, device_class, unit_of_measurement, entity_category, value_template = "{{ value }}", precision = 3):
         r = {
@@ -428,7 +433,7 @@ class RS485MQTTClient:
     def connect_and_listen(self):
         try:
             # Initialize log file
-            self.logger.info(f"Logging data to: {os.path.abspath(self.log_file)}")
+            self.logger.info(f"{get_timestamp()} Logging data to: {os.path.abspath(self.log_file)}")
             
             # Create MQTT client
             self.client = mqtt.Client()
@@ -442,22 +447,22 @@ class RS485MQTTClient:
             # Set username and password
             self.client.username_pw_set(self.username, self.password)
             
-            self.logger.info(f"Connecting to MQTT broker at {self.broker_host}:{self.broker_port}...")
+            self.logger.info(f"{get_timestamp()} Connecting to MQTT broker at {self.broker_host}:{self.broker_port}...")
             
             # Connect to broker
             self.client.connect(self.broker_host, self.broker_port, 60)
             
             # Start the loop
-            self.logger.info("Starting MQTT client loop...")
-            self.logger.info("Waiting for RS485 data... (Press Ctrl+C to exit)")
+            self.logger.info(f"{get_timestamp()} Starting MQTT client loop...")
+            self.logger.info(f"{get_timestamp()} Waiting for RS485 data... (Press Ctrl+C to exit)")
             self.client.loop_forever()
             
         except KeyboardInterrupt:
-            self.logger.info("Shutting down...")
+            self.logger.info(f"{get_timestamp()} Shutting down...")
             if self.client:
                 self.client.disconnect()
         except Exception as e:
-            self.logger.error(f"Error: {e}", exc_info=True)
+            self.logger.error(f"{get_timestamp()} Error: {e}", exc_info=True)
             return False
         
         return True
