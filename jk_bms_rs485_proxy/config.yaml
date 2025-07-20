@@ -33,4 +33,3 @@ schema:
   log_level: list(trace|debug|info|notice|warning|error|fatal)?
 services:
   - mqtt:need
-image: "homeassistant/{arch}-base-python:3.11-alpine3.18"
