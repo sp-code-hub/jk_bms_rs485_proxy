@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 RS485 MQTT Client for JK-BMS Data
-Connects to MQTT broker and displays received binary data in formatted output
+
 https://github.com/txubelaxu/esphome-jk-bms/blob/main/components/jk_rs485_bms/README.md
 https://github.com/txubelaxu/esphome-jk-bms/blob/main/components/jk_rs485_sniffer/jk_rs485_sniffer.cpp
 https://github.com/txubelaxu/esphome-jk-bms/blob/main/components/jk_rs485_bms/jk_rs485_bms.cpp

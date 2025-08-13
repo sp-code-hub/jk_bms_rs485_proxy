@@ -1,6 +1,6 @@
 name: "JK-BMS RS485 MQTT Proxy"
 description: "MQTT proxy for JK-BMS RS485 data with Home Assistant auto-discovery"
-version: "1.0.2"
+version: "1.0.3"
 slug: "jk_bms_rs485_proxy"
 arch:
   - armhf

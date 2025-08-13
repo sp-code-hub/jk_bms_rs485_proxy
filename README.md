@@ -114,6 +114,21 @@ For issues and feature requests, please check the addon logs first and then repo
 
 ## Changelog
 
+### 1.0.3
+- Added MQTT reconnection on disconnect (5 retry attempts)
+- Initial connection retry logic with automatic process exit on failure
+- Improved network resilience and error handling
+
+### 1.0.2
+- Enhanced logging system with custom timestamp format
+- Added configurable log levels (trace, debug, info, warning, error, fatal)
+- Improved addon log integration for Home Assistant
+
+### 1.0.1
+- Fixed image configuration for Home Assistant addon validation
+- Updated addon configuration schema
+- Repository structure improvements
+
 ### 1.0.0
 - Initial release
 - Support for JK-BMS RS485 data parsing
