@@ -93,6 +93,27 @@ class RS485MQTTClient:
         self.logger.error(f"{get_timestamp()} All reconnect attempts failed - exiting process")
         sys.exit(1)
     
+    def safe_publish(self, topic, payload, qos=0, retain=False):
+        """Publish with result checking and reconnection on failure."""
+        try:
+            result = self.client.publish(topic, payload, qos=qos, retain=retain)
+            
+            # Check if publish was successful
+            if result.rc != mqtt.MQTT_ERR_SUCCESS:
+                self.logger.error(f"{get_timestamp()} Failed to publish to {topic}: error code {result.rc}")
+                self.logger.warning(f"{get_timestamp()} Publish failure detected - triggering reconnection")
+                self.simple_reconnect()
+                return False
+            else:
+                self.logger.debug(f"{get_timestamp()} Successfully published to {topic}")
+                return True
+                
+        except Exception as e:
+            self.logger.error(f"{get_timestamp()} Exception during publish to {topic}: {e}")
+            self.logger.warning(f"{get_timestamp()} Publish exception - triggering reconnection")
+            self.simple_reconnect()
+            return False
+    
     def on_message(self, client, userdata, msg):
         try:
             now = datetime.datetime.now()
@@ -195,7 +216,7 @@ class RS485MQTTClient:
                     else:
                         self.logger.debug(f"{get_timestamp()} Update settings for BMS #{frameAddress}")
 
-                    self.client.publish(
+                    self.safe_publish(
                         f"{self.topic_values}/{frameAddress:02d}/settings",
                         json.dumps({
                             "charge_voltage": truncate(read32(msg.payload, 38) * 0.001, 3),
@@ -332,7 +353,7 @@ class RS485MQTTClient:
 
                     state["alarms"] = alarms
 
-                    self.client.publish(
+                    self.safe_publish(
                         f"{self.topic_values}/{frameAddress:02d}/state",
                         json.dumps(state)
                     )
@@ -415,7 +436,7 @@ class RS485MQTTClient:
         if precision is None:
             r.pop("suggested_display_precision", None)
 
-        self.client.publish(
+        self.safe_publish(
             f'{self.topic_registration}/sensor/jk_bms_{address:02d}/{id}/config',
             json.dumps(r, indent=4)
         )
@@ -442,7 +463,7 @@ class RS485MQTTClient:
         if entity_category is not None:
             r["entity_category"] = entity_category
 
-        self.client.publish(
+        self.safe_publish(
             f'{self.topic_registration}/binary_sensor/jk_bms_{address:02d}/{id}/config',
             json.dumps(r, indent=4)
         )

@@ -114,6 +114,12 @@ For issues and feature requests, please check the addon logs first and then repo
 
 ## Changelog
 
+### 1.0.4
+- Added MQTT publish result verification with automatic reconnection
+- Enhanced safe_publish() method to check message delivery
+- Improved reliability for data transmission to Home Assistant
+- Better detection of connection issues during publish operations
+
 ### 1.0.3
 - Added MQTT reconnection on disconnect (5 retry attempts)
 - Initial connection retry logic with automatic process exit on failure
