@@ -14,6 +14,7 @@ import math
 import paho.mqtt.client as mqtt
 import os
 import sys
+import time
 
 # Configure logging for Home Assistant addon
 def setup_logging(log_level="INFO"):
@@ -73,8 +74,24 @@ class RS485MQTTClient:
     def on_disconnect(self, client, userdata, rc):
         if rc != 0:
             self.logger.warning(f"{get_timestamp()} Unexpected disconnection from MQTT broker")
+            self.simple_reconnect()
         else:
             self.logger.info(f"{get_timestamp()} Disconnected from MQTT broker")
+    
+    def simple_reconnect(self):
+        """Simple reconnect with basic retry logic."""
+        for attempt in range(1, 6):  # Try 5 times
+            try:
+                self.logger.info(f"{get_timestamp()} Reconnect attempt {attempt}/5...")
+                time.sleep(5)  # Wait 5 seconds before retry
+                self.client.reconnect()
+                self.logger.info(f"{get_timestamp()} Reconnected successfully")
+                return
+            except Exception as e:
+                self.logger.error(f"{get_timestamp()} Reconnect attempt {attempt} failed: {e}")
+        
+        self.logger.error(f"{get_timestamp()} All reconnect attempts failed - exiting process")
+        sys.exit(1)
     
     def on_message(self, client, userdata, msg):
         try:
@@ -449,8 +466,22 @@ class RS485MQTTClient:
             
             self.logger.info(f"{get_timestamp()} Connecting to MQTT broker at {self.broker_host}:{self.broker_port}...")
             
-            # Connect to broker
-            self.client.connect(self.broker_host, self.broker_port, 60)
+            # Initial connection with retry
+            connected = False
+            for attempt in range(1, 6):  # Try 5 times
+                try:
+                    self.logger.info(f"{get_timestamp()} Initial connection attempt {attempt}/5...")
+                    self.client.connect(self.broker_host, self.broker_port, 60)
+                    connected = True
+                    break
+                except Exception as e:
+                    self.logger.error(f"{get_timestamp()} Initial connection attempt {attempt} failed: {e}")
+                    if attempt < 5:
+                        time.sleep(5)  # Wait 5 seconds before retry
+            
+            if not connected:
+                self.logger.error(f"{get_timestamp()} Failed to establish initial connection after 5 attempts - exiting")
+                sys.exit(1)
             
             # Start the loop
             self.logger.info(f"{get_timestamp()} Starting MQTT client loop...")
