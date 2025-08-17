@@ -8,7 +8,7 @@ arch:
   - aarch64
   - amd64
   - i386
-startup: before
+startup: application
 boot: auto
 init: false
 watchdog: true
