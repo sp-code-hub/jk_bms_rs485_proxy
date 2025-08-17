@@ -11,8 +11,6 @@ arch:
 startup: application
 boot: auto
 init: false
-watchdog: true
-auto_update: false
 map:
   - share:rw
 options:
